@@ -78,7 +78,7 @@ public class WalletController {
 	public APIResponse<List<Wallet>> getAll(@RequestBody Wallet wallet){
 		 return service.getAll(wallet);
 	}
-	   @PostMapping("/deposit")
+	  @PostMapping("/deposit")
 	    public ResponseEntity<APIResponse<Wallet>> deposit(@RequestParam String senderWalletId, @RequestParam BigDecimal amount,@RequestParam String receiverWalletId,@RequestParam  String currency ) {
 	        APIResponse<Wallet> wallet= service.deposit(senderWalletId, amount,receiverWalletId,currency);
 	        
@@ -91,8 +91,8 @@ public class WalletController {
 	    }
 
 	   @PostMapping("/recharge")
-	   public ResponseEntity<APIResponse<Wallet>>recharge(@RequestParam String id, @RequestParam BigDecimal amount){
-		     APIResponse<Wallet> wallet=  service.recharge(id, amount);
+	   public ResponseEntity<APIResponse<Wallet>>recharge(@RequestParam String senderWalletId,@RequestParam String mobile, @RequestParam BigDecimal amount){
+		     APIResponse<Wallet> wallet=  service.recharge(senderWalletId,mobile, amount);
 			return ResponseEntity.ok(wallet);
 		}
 	   @PostMapping("/withdraw")

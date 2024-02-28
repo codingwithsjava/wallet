@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.transaction.config.MQConfig;
 import com.transaction.entity.Transaction;
 import com.transaction.entity.Wallet;
 import com.transaction.exception1.InsufficientBalanceException;
@@ -36,6 +38,7 @@ public class TransactionController {
 	@Autowired
 	private TransactionService service2;
 	
+	
 	@GetMapping("/get")
 	public String healthcheck() {
 		return "this is transaction health check up";
@@ -53,9 +56,31 @@ public class TransactionController {
 		 return new ResponseEntity(service2.gettrasaction(transactionid),HttpStatus.OK);
 	}
 	@PostMapping("/create")
-	public Transaction create(@RequestBody Transaction wallet) {
+	public ResponseEntity<String> create(@RequestBody Transaction wallet) {
 		System.out.println("hello this is trans");
-		return service2.create(wallet);
+
+		return new ResponseEntity( service2.deposite(wallet),HttpStatus.OK);
+	}
+	
+	@PostMapping("/deposit")
+	public ResponseEntity<String> todeposit(@RequestBody Transaction wallet) {
+		System.out.println("hello this is trans");
+
+		return new ResponseEntity( service2.todeposite(wallet),HttpStatus.OK);
+	}
+	
+	@PostMapping("/recharge")
+	public ResponseEntity<String> recharge(@RequestBody Transaction wallet) {
+		System.out.println("hello this is trans");
+
+		return new ResponseEntity( service2.recharge(wallet),HttpStatus.OK);
+	}
+	
+	@PostMapping("/withdraw")
+	public ResponseEntity<String> withdraw(@RequestBody Transaction wallet) {
+		System.out.println("hello this is trans");
+
+		return new ResponseEntity( service2.withdraw(wallet),HttpStatus.OK);
 	}
 	
 //	@GetMapping("/{id}")

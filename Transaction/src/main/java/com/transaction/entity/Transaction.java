@@ -61,6 +61,9 @@ public class Transaction {
     private ServiceType serviceType;
 
 	 private String Referenceno;
+	 
+	 private String mobile;
+
 
 	
 

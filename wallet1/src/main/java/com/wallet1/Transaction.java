@@ -57,6 +57,9 @@ public class Transaction {
 
 	 private String Referenceno;
 	 
+	 private String mobile;
+
+	 
 
 	
 

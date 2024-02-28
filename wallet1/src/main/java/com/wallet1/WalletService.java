@@ -13,13 +13,12 @@ import java.util.UUID;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
 import com.wallet1.InsufficientBalanceException;
 import com.wallet1.Transaction;
-import com.wallet1.TransactionRepo;
 import com.wallet1.UserNotFoundException;
 import com.wallet1.Wallet;
 import com.wallet1.WalletRepository;
@@ -36,21 +35,21 @@ public class WalletService {
 	private NotificationServiceClient client;
 	
 	@Autowired
-	private RabbitTemplate rabbitTemplate;
+	private RabbitTemplate template;
 
 	
 	
-	@Autowired
-	private TransactionRepo repo;
+//	@Autowired
+//	private TransactionRepo repo;
 	
 	APIResponse apiResponse=new APIResponse();
 	
 	 public APIResponse<Wallet> deposit(String senderWalletId, BigDecimal amount,String receiverWalletId,String currency) {
 		 Transaction transaction = new Transaction();
-		    if (isTransactionServiceAvailable()) {
 		 
 	        Optional<Wallet> optionalWallet = repository.findBysenderWalletId(senderWalletId);
 	        if (optionalWallet.isPresent()) {
+	        	try {
 	            Wallet wallet = optionalWallet.get();
 	            wallet.setBalance(wallet.getBalance().add(amount));
 	            repository.save(wallet);
@@ -68,19 +67,27 @@ public class WalletService {
 	            transaction.setServiceType(ServiceType.WALLET_DEPOSIT);
 	            transaction.setUpdatedDate(new Date());
 	            transaction.setReferenceno(UUID.randomUUID().toString());
-	            client.create(transaction);
 	            
-	            repo.save(transaction);
-	            apiResponse=new  APIResponse(200,transaction);
+	           // repo.save(transaction);
+	            	
+	            template.convertAndSend(MQConfig.Exchange, MQConfig.ROUTING_KEY, transaction);
+	            	client.create(transaction);
+	            	apiResponse=new  APIResponse(200,transaction);
+	            }catch (Exception e) {
+	               apiResponse=new APIResponse(409,HttpStatus.INTERNAL_SERVER_ERROR);
+
+				}
+	            return apiResponse;
 	           //Transaction otp=   client.sendOtp(phoneNumber, username, transaction);
 	        } else {
 
-	            apiResponse=new  APIResponse(200,transaction);
+	            apiResponse=new  APIResponse(200,"not deposit");
 
 	     
-	    }}
-		    storeTransactionInQueue( senderWalletId,  amount,receiverWalletId, currency);
-            apiResponse=new  APIResponse(200,"not deposit");
+	    }
+
+		//    storeTransactionInQueue( senderWalletId,  amount,receiverWalletId, currency);
+          //  apiResponse=new  APIResponse(200,"not deposit");
 
 	      //  return apiResponse;
 	        return apiResponse;
@@ -88,29 +95,13 @@ public class WalletService {
 
 	
 	 }
-	  private void storeTransactionInQueue(String senderWalletId, BigDecimal amount,String receiverWalletId,String currency) {
-	        rabbitTemplate.convertAndSend("message_queue", "deposit: " + senderWalletId + " - " + amount);
-	    }
-	  public static boolean isTransactionServiceAvailable() {
-		  String healthCheckUrl="http://localhost:8888/transaction/create";
-	        try {
-	            URL url = new URL(healthCheckUrl);
-	            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-	            connection.setRequestMethod("POST");
-	            connection.setConnectTimeout(5000); // Timeout in milliseconds
-	            connection.connect();
-	            
-	            int responseCode = connection.getResponseCode();
-	            return responseCode == HttpURLConnection.HTTP_OK;
-	        } catch (Exception e) {
-	            return false;
-	        }
-	    }
+
 	 public APIResponse<Wallet> todeposit(String senderWalletId, BigDecimal amount,String receiverWalletId,String currency) {
 	        Optional<Wallet> optionalWallet = repository.findBysenderWalletId(senderWalletId);
 	        Optional<Wallet> optionalWallet1 = repository.findByreceiverWalletId(receiverWalletId);
 
 	        if (optionalWallet.isPresent()&&optionalWallet1.isPresent()) {
+	        	try {
 	            Wallet wallet = optionalWallet.get();
 	            Wallet wallet1 = optionalWallet1.get();
 
@@ -135,17 +126,31 @@ public class WalletService {
 	            transaction.setServiceType(ServiceType.WALLET_DEPOSIT);
 	            transaction.setUpdatedDate(new Date());
 	            transaction.setReferenceno(UUID.randomUUID().toString());
-	            client.create(transaction);
+	            template.convertAndSend(MQConfig.Exchange, MQConfig.ROUTING_KEY, transaction);
+            	client.todeposit(transaction);
+            	apiResponse=new  APIResponse(200,transaction);
+            }catch (Exception e) {
+               apiResponse=new APIResponse(409,HttpStatus.INTERNAL_SERVER_ERROR);
 
-	            repo.save(transaction);
-	            apiResponse=new  APIResponse(200,transaction);
-	        } else {
-	            apiResponse=new  APIResponse(200,"not deposit");
+			}
+            return apiResponse;
+           //Transaction otp=   client.sendOtp(phoneNumber, username, transaction);
+        } else {
 
-	           return apiResponse;
-	    }
-	        return apiResponse;
-	}
+            apiResponse=new  APIResponse(200,"not deposit");
+
+     
+    }
+
+	//    storeTransactionInQueue( senderWalletId,  amount,receiverWalletId, currency);
+      //  apiResponse=new  APIResponse(200,"not deposit");
+
+      //  return apiResponse;
+        return apiResponse;
+        
+
+
+ }
 
 	public APIResponse<Wallet> create(Wallet wallet) {
 	
@@ -168,47 +173,81 @@ public class WalletService {
 		return apiResponse;
 	}
 	//@Transactional
-	public APIResponse<Wallet> recharge(String id, BigDecimal amount) {
-		Transaction transaction = new  Transaction();
-		 Wallet wallet = repository.findById(id)
-	                .orElseThrow(() -> new UserNotFoundException("User not found"));
+	public APIResponse<Wallet> recharge(String senderWalletId,String mobile, BigDecimal amount) {
+		 Wallet wallet = repository.findBysenderWalletId(senderWalletId) .orElseThrow(() -> new UserNotFoundException("User not found"));
+		  Optional<Wallet> optionalWallet = repository.findBysenderWalletId(senderWalletId);
+	        if (optionalWallet.isPresent()) {
+	      //  Optional<Wallet> wallet = repository.findBysenderWalletId(senderWalletId);
 
-	        BigDecimal currentBalance = wallet.getBalance();
+
+		 try {
+		 BigDecimal currentBalance = wallet.getBalance();
 	        if (currentBalance.compareTo(amount) < 0) {
 	            throw new InsufficientBalanceException("Insufficient balance");
 	        }
-
 	     
+	        		Transaction transaction = new  Transaction();
 	        BigDecimal updatedBalance = currentBalance.subtract(amount);
 	        wallet.setBalance(updatedBalance);
-			transaction.setTransactionid(id);
-	        transaction.setAmount(amount);
-	        transaction.setDescription("mobile recharge sucess");
-	        transaction.setTransactiondate(LocalDateTime.now());
-	        transaction.setWalletid(wallet.getSenderWalletId());
-	        transaction.setCurrency("indian rupee");
-	        transaction.setStatus(TransactionStatus.SUCCESS);
+	        repository.save(wallet);
+	        transaction.setTransactionid(transaction.getTransactionid());
+            transaction.setWalletid(senderWalletId);
+            transaction.setAmount(amount);
+            transaction.setSenderWalletId(senderWalletId);
+            transaction.setReceiverWalletId(transaction.getReceiverWalletId());
+            transaction.setTransactiondate( LocalDateTime.now());
+            transaction.setDescription("mobile recharge success");
+            transaction.setCurrency("indian rupee");
+            transaction.setStatus(TransactionStatus.SUCCESS);
             transaction.setType(TransactionType.WALLET);
             transaction.setServiceType(ServiceType.MOBILE_RECHARGE);
+            transaction.setUpdatedDate(new Date());
             transaction.setReferenceno(UUID.randomUUID().toString());
-	        transaction=repo.save(transaction);
-	        repository.save(wallet);
-	        apiResponse=new  APIResponse(200,transaction);
-	        return apiResponse;
-	    }
-	
-	public APIResponse<Wallet>  withdraw(String id, BigDecimal amount) {
-		Transaction transaction = new  Transaction();
-		 Wallet wallet = repository.findById(id)
-	                .orElseThrow(() -> new UserNotFoundException("User not found"));
+            transaction.setMobile(mobile);
+	    //   transaction=repo.save(transaction);
+	        template.convertAndSend(MQConfig.Exchange, MQConfig.ROUTING_KEY, transaction);
+        	client.recharge(transaction);
+        	apiResponse=new  APIResponse(200,transaction);
+        }catch (Exception e) {
+           apiResponse=new APIResponse(409,HttpStatus.INTERNAL_SERVER_ERROR);
 
+		}
+         return apiResponse;
+         //Transaction otp=   client.sendOtp(phoneNumber, username, transaction);
+      } else {
+
+          apiResponse=new  APIResponse(200,"not deposit");
+
+   
+  }
+
+	//    storeTransactionInQueue( senderWalletId,  amount,receiverWalletId, currency);
+    //  apiResponse=new  APIResponse(200,"not deposit");
+
+    //  return apiResponse;
+      return apiResponse;
+      
+
+
+} 
+
+//    storeTransactionInQueue( senderWalletId,  amount,receiverWalletId, currency);
+  //  apiResponse=new  APIResponse(200,"not deposit");
+
+  //  return apiResponse;
+
+	public APIResponse<Wallet>  withdraw(String senderWalletId, BigDecimal amount) {
+		Transaction transaction = new  Transaction();
+		 Wallet wallet = repository.findBysenderWalletId(senderWalletId) .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+		 	try {
 	        BigDecimal currentBalance = wallet.getBalance();
 	        if (currentBalance.compareTo(amount) < 0) {
 	            throw new InsufficientBalanceException("Insufficient balance");
 	        }
 	     
 	        BigDecimal updatedBalance = currentBalance.subtract(amount);
-			transaction.setTransactionid(id);
+		//	transaction.setTransactionid(id);
 
 	        wallet.setBalance(updatedBalance);
 	        transaction.setAmount(amount);
@@ -220,10 +259,19 @@ public class WalletService {
             transaction.setType(TransactionType.WALLET);
             transaction.setServiceType(ServiceType.WALLET_WITHDRAW);
             transaction.setReferenceno(UUID.randomUUID().toString());
-	        transaction=repo.save(transaction);
+	       // transaction=repo.save(transaction);
 	        repository.save(wallet);
-	        apiResponse=new  APIResponse(200,transaction);
-	        return apiResponse;
+	        template.convertAndSend(MQConfig.Exchange, MQConfig.ROUTING_KEY, transaction);
+        	client.withdraw(transaction);
+        	apiResponse=new  APIResponse(200,transaction);
+        }catch (Exception e) {
+           apiResponse=new APIResponse(409,HttpStatus.INTERNAL_SERVER_ERROR);
+
+		}
+        return apiResponse;
+       //Transaction otp=   client.sendOtp(phoneNumber, username, transaction);
+ 
+    
 	    }
 		// TODO Auto-generated method stub
 		
